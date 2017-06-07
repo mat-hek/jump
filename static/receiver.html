@@ -1,0 +1,17 @@
+<html>
+  <head>
+    <title>receiver</title>
+  </head>
+  <body style='background-color:black;color:white;font-family:arial'>
+  </body>
+  <script>
+    var body = document.getElementsByTagName('body')[0]
+    var ws = new WebSocket('ws://' + window.location.hostname + ':9160')
+    ws.onopen = function() {
+      ws.send('receiver')
+    }
+    ws.onmessage = function(evt){
+      body.innerHTML = evt.data
+    }
+  </script>
+</html>

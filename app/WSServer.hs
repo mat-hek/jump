@@ -6,146 +6,99 @@
 -- available [here](/example/client.html).  In order to understand this example,
 -- keep the [reference](/reference/) nearby to check out the functions we use.
 
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, FlexibleInstances #-}
 module WSServer where
-import Data.Char (isPunctuation, isSpace)
 -- import Data.Monoid (mappend)
-import Data.Text (Text)
+import Data.Maybe
+import Data.Text
 import Control.Exception (finally)
-import Control.Monad (forM_, forever)
-import Control.Concurrent (MVar, newMVar, modifyMVar_, modifyMVar, readMVar)
-import qualified Data.Text as T
-import qualified Data.Text.IO as T
+import Control.Monad
+import Control.Concurrent
 
 import qualified Network.WebSockets as WS
 
--- We represent a client by their username and a `WS.Connection`. We will see how we
--- obtain this `WS.Connection` later on.
-
-type Client = (Text, WS.Connection)
-
--- The state kept on the server is simply a list of connected clients. We've added
--- an alias and some utility functions, so it will be easier to extend this state
--- later on.
-
-type ServerState = [Client]
-
--- Create a new, initial state:
-
-newServerState :: ServerState
-newServerState = []
-
--- Get the number of active clients:
-
-numClients :: ServerState -> Int
-numClients = length
-
--- Check if a user already exists (based on username):
-
-clientExists :: Client -> ServerState -> Bool
-clientExists client = any ((== fst client) . fst)
-
--- Add a client (this does not check if the client already exists, you should do
--- this yourself using `clientExists`):
-
-addClient :: Client -> ServerState -> ServerState
-addClient client clients = client : clients
-
--- Remove a client:
-
-removeClient :: Client -> ServerState -> ServerState
-removeClient client = filter ((/= fst client) . fst)
-
--- Send a message to all clients, and log it on stdout:
-
-broadcast :: Text -> ServerState -> IO ()
-broadcast message clients = do
-    T.putStrLn message
-    forM_ clients $ \(_, conn) -> WS.sendTextData conn message
 
 -- The main function first creates a new state for the server, then spawns the
 -- actual server. For this purpose, we use the simple server provided by
 -- `WS.runServer`.
 
-run :: IO ()
-run = do
-    state <- newMVar newServerState
-    WS.runServer "127.0.0.1" 9160 $ application state
+data ServerState = ServerState{
+  sender::Maybe WS.Connection,
+  receiver::Maybe WS.Connection
+}
+initialServerState :: ServerState
+initialServerState = ServerState Nothing Nothing
 
--- Our main application has the type:
+run :: String -> Int -> IO ()
+run host port = do
+    state <- newMVar initialServerState
+    putStrLn $ "WS server is running on " ++ host ++ ":" ++ (show port)
+    WS.runServer host port $ application state
+
+(|>) :: a -> (a -> b) -> b
+(|>) v f = f v
+infixl 1 |>
+
+data WSAction = Send WS.Connection Text
+
+handleEvent::MVar ServerState -> (ServerState -> ([WSAction], ServerState)) -> IO ()
+handleEvent state f = do
+  s <- takeMVar state
+  let  (actions, newstate) = f s
+  actions |> mapM_ handleWSAction
+  putMVar state newstate
+
+class MessageHandler a where
+  handleMessage :: WS.Connection -> MVar ServerState -> a -> IO ()
+
+instance MessageHandler (Text -> ServerState -> ([WSAction], ServerState)) where
+  handleMessage conn state f = do
+    m <- (WS.receiveData conn)::(IO Text)
+    s <- takeMVar state
+    let (actions, newstate) = f m s
+    actions |> mapM_ handleWSAction
+    putMVar state newstate
+
+instance MessageHandler (Text -> ServerState -> [WSAction]) where
+  handleMessage conn state f = do
+    m <- (WS.receiveData conn)::(IO Text)
+    s <- readMVar state
+    let actions = f m s
+    actions |> mapM_ handleWSAction
+
+handleWSAction::WSAction -> IO ()
+handleWSAction (Send conn msg) = WS.sendTextData conn msg
 
 application :: MVar ServerState -> WS.ServerApp
+application (state) pending = do
+  conn <- WS.acceptRequest pending
+  putStrLn "incoming connection"
+  WS.forkPingThread conn 30
+  msg <- (WS.receiveData conn)::(IO Text)
+  case msg of
+    "sender" -> flip finally disconnect connect
+      where
+        disconnect = handleEvent state $ \s -> ([], s {sender = Nothing})
+        connect = do
+          handleEvent state $ \s -> ([], s {sender = Just conn})
+          forever $ handleMessage conn state $
+            \m s -> [receiver s |> (fmap $ flip Send m)] |> catMaybes
+    "receiver" -> flip finally disconnect connect
+      where
+        disconnect = handleEvent state $ \s -> ([], s {receiver = Nothing})
+        connect = do
+          handleEvent state $ \s -> ([], s {receiver = Just conn})
+          forever $ handleMessage conn state ((\_ _ -> [])::(Text -> ServerState -> [WSAction]))
+    _ -> return ()
 
--- Note that `WS.ServerApp` is nothing but a type synonym for
--- `WS.PendingConnection -> IO ()`.
 
--- Our application starts by accepting the connection. In a more realistic
--- application, you probably want to check the path and headers provided by the
--- pending request.
-
--- We also fork a pinging thread in the background. This will ensure the connection
--- stays alive on some browsers.
-
-application state pending = do
-    conn <- WS.acceptRequest pending
-    WS.forkPingThread conn 30
-
--- When a client is succesfully connected, we read the first message. This should
--- be in the format of "Hi! I am Jasper", where Jasper is the requested username.
-
-    msg <- WS.receiveData conn
-    clients <- readMVar state
-    case msg of
-
--- Check that the first message has the right format:
-
-        _   | not (prefix `T.isPrefixOf` msg) ->
-                WS.sendTextData conn ("Wrong announcement" :: Text)
-
--- Check the validity of the username:
-
-            | any ($ fst client)
-                [T.null, T.any isPunctuation, T.any isSpace] ->
-                    WS.sendTextData conn ("Name cannot " `mappend`
-                        "contain punctuation or whitespace, and " `mappend`
-                        "cannot be empty" :: Text)
-
--- Check that the given username is not already taken:
-
-            | clientExists client clients ->
-                WS.sendTextData conn ("User already exists" :: Text)
-
--- All is right! We're going to allow the client, but for safety reasons we *first*
--- setup a `disconnect` function that will be run when the connection is closed.
-
-            | otherwise -> flip finally disconnect $ do
-
--- We send a "Welcome!", according to our own little protocol. We add the client to
--- the list and broadcast the fact that he has joined. Then, we give control to the
--- 'talk' function.
-
-               modifyMVar_ state $ \s -> do
-                   let s' = addClient client s
-                   WS.sendTextData conn $
-                       "Welcome! Users: " `mappend`
-                       T.intercalate ", " (map fst s)
-                   broadcast (fst client `mappend` " joined") s'
-                   return s'
-               talk conn state client
-          where
-            prefix     = "Hi! I am "
-            client     = (T.drop (T.length prefix) msg, conn)
-            disconnect = do
-                --  Remove client and return new state
-                s <- modifyMVar state $ \s ->
-                    let s' = removeClient client s in return (s', s')
-                broadcast (fst client `mappend` " disconnected") s
-
--- The talk function continues to read messages from a single client until he
--- disconnects. All messages are broadcasted to the other clients.
-
-talk :: WS.Connection -> MVar ServerState -> Client -> IO ()
-talk conn state (user, _) = forever $ do
-    msg <- WS.receiveData conn
-    readMVar state >>= broadcast
-        (user `mappend` ": " `mappend` msg)
+      -- case msg of
+      --   "sender" -> do flip finally disconnect connect
+      --     where
+      --       disconnect = do modifyMVar_ state $ \s -> return $ s {sender = Nothing}
+      --       connect = do
+      --         modifyMVar_ state $ \s -> return s {sender = Just conn}
+      --         forever $ do
+      --             m <- (WS.receiveData conn)::(IO Text)
+      --             s <- readMVar state
+      --             receiver s |> mapM_ (\r -> WS.sendTextData r m)

@@ -1,0 +1,25 @@
+<html>
+  <head>
+    <title>sender</title>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0' />
+  </head>
+  <body style='background-color:black;color:white;font-family:arial'>
+  </body>
+  <script>
+    var ws = new WebSocket('ws://' + window.location.hostname + ':9160')
+    var body = document.getElementsByTagName('body')[0]
+    var i = 0
+    ws.onopen = function() {
+      ws.send('sender')
+      setInterval(
+        function(){
+          ws.send('msg' + i)
+          body.innerHTML = 'sending message ' + i
+          i++
+        },
+        25
+      )
+    }
+    ws.onmessage = function(evt){console.log('msg', evt)}
+  </script>
+</html>
