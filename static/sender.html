@@ -9,6 +9,8 @@
   <script>
     if (window.DeviceMotionEvent != undefined) {
       var body = document.getElementsByTagName('body')[0]
+
+      //FIXME: nosleep not working
       var noSleep = new NoSleep();
       function enableNoSleep() {
         noSleep.enable();
@@ -19,10 +21,11 @@
 
       var ws = new WebSocket('ws://' + window.location.hostname + ':9160')
       var position = null
+      var deg = function(rad){return rad*180/Math.PI}
       window.ondevicemotion = function(e) {
         var acc = e.accelerationIncludingGravity
         var rot = e.rotationRate
-        position = [acc.x, acc.y, acc.z, rot.alpha, rot.beta, rot.gamma]
+        position = [acc.x, acc.y, acc.z, deg(rot.alpha), deg(rot.beta), deg(rot.gamma)]
           //.map(function(x){return Math.round(1E10*x)/1E10})
           .join(";")
       }
@@ -32,7 +35,7 @@
           function(){
             if(position != null) {
               ws.send(position)
-              body.innerHTML = 'sending message ' + position
+              body.innerHTML = position.split(';').join('<br>')
             }
           },
           100

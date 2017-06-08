@@ -1,0 +1,54 @@
+<html>
+  <head>
+    <title>debugger</title>
+  </head>
+  <body style='background-color:black;color:white;font-family:arial;margin:0'>
+  </body>
+  <script src="canvasjs.min.js"></script>
+  <script>
+
+    var body = document.getElementsByTagName('body')[0]
+    var vars = ["motion", "x", "y", "z", "alpha", "beta", "gamma", "avg"]
+    var updateChart = vars.map(mkChart)
+    function mkChart(name) {
+      var div = document.createElement("div")
+      div.id = "chart"+name
+      div.style="margin:10px;float:left"
+      div.style.height = window.innerHeight/2 - 20
+      div.style.width = window.innerWidth/4 - 20
+      body.appendChild(div)
+      var dps = []
+      var i = 0
+      var chart = new CanvasJS.Chart(
+        "chart" + name,
+        {
+          backgroundColor: 'lightgray',
+          title: {text: name},
+          // axisY: {viewportMinimum: -40, viewportMaximum: 40},
+          // zoomEnabled: false,
+          data: [{type: "line", color: "#369EAD", markerSize: 5, dataPoints: dps}]
+        }
+      );
+      chart.render()
+      return function(value) {
+        dps.push({x:i++,y:value})
+        if (dps.length > 50) dps.shift()
+        chart.render()
+      }
+    }
+
+    var ws = new WebSocket('ws://' + window.location.hostname + ':9160')
+    ws.onopen = function() {
+      ws.send('debugger')
+    }
+    ws.onmessage = function(evt){
+
+      var data = evt.data.split(';')
+      data[0] = {'Stopped': 0, 'Running': 1, 'Jumping': 2}[data[0]]
+      data = data.map(function(x){return parseFloat(x,10)})
+      data.push(data.slice(1).reduce(function(a,b,i){return (i<=3) ? a+b : a}, 0))
+      data.map(function(x, i){updateChart[i](x)})
+    }
+
+  </script>
+</html>

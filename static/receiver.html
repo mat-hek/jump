@@ -2,48 +2,22 @@
   <head>
     <title>receiver</title>
   </head>
-  <body style='background-color:black;color:white;font-family:arial'>
-    <!--<div id="data"></div>-->
+  <body style='background-color:lightgray;color:white;font-family:arial;font-size:40;margin:20'>
   </body>
-  <script src="canvasjs.min.js"></script>
   <script>
 
     var body = document.getElementsByTagName('body')[0]
-    var vars = ["x", "y", "z", "alpha", "beta", "gamma"]
-    var updateChart = vars.map(mkChart)
-    function mkChart(name) {
-      var div = document.createElement("div")
-      div.id = "chart"+name
-      div.style="margin:10px;float:left"
-      div.style.height = window.innerHeight/2 - 40
-      div.style.width = window.innerWidth/3 - 40
-      body.appendChild(div)
-      var dps = []
-      var i = 0
-      var chart = new CanvasJS.Chart(
-        "chart" + name,
-        {
-          backgroundColor: 'lightgray',
-          title: {text: name},
-          // axisY: {viewportMinimum: -40, viewportMaximum: 40},
-          // zoomEnabled: false,
-          data: [{type: "line", dataPoints: dps}]
-        }
-      );
-      chart.render()
-      return function(value) {
-        dps.push({x:i++,y:value})
-        if (dps.length > 350) dps.shift()
-        chart.render()
-      }
-    }
 
     var ws = new WebSocket('ws://' + window.location.hostname + ':9160')
     ws.onopen = function() {
       ws.send('receiver')
+      body.innerHTML = 'connected'
     }
     ws.onmessage = function(evt){
-      evt.data.split(';').map(function(x, i){updateChart[i](parseFloat(x, 10))})
+      var color =
+      body.style.backgroundColor =
+        {'Stopped': 'lightgray', 'Running': 'lightgreen', 'Jumping': 'yellow'}[evt.data]
+      body.innerHTML = evt.data
     }
 
   </script>
