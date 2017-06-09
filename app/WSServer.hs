@@ -114,7 +114,7 @@ dumbReceive conn state =
 parsePosition::Text -> [Double]
 parsePosition t = t |> splitOn ";" |> fmap (\x -> read (unpack x) :: Double)
 
-data Motion = Stopped | Running | Jumping
+data Motion = Stopped | Running | Jumping deriving Eq
 deriving instance Show Motion
 
 data MotionBorder = Top | Bottom | None deriving Eq
@@ -135,7 +135,9 @@ calcMotion (CalcMotionState motion' border' i lx lj scaler'@(MotionScaler zeroLv
     _ | lastMotion' > rescaleAfter ->
       nextState {motion = Stopped, border = None, scaler = MotionScaler x 0}
     None | x < bottomLvl -> nextState {motion = Running, border = Bottom}
-    b | b `elem` [Top, Bottom] && (x > topJumpLvl || x < bottomJumpLvl) && lj == 0 ->
+    _ | motion' == Jumping && lj > 0 -> nextState{jumpIgnore = lj-1}
+    _ | motion' == Jumping && lj == 0 -> nextState{motion = Running}
+    _ | (x > topJumpLvl || x < bottomJumpLvl) ->
       nextState {motion = Jumping, jumpIgnore = jumpIgnore'}
     Top | x > topLvl -> nextState {motion = Running}
     Top | x < bottomLvl -> nextState {motion = Running, border = Bottom}
@@ -148,16 +150,16 @@ calcMotion (CalcMotionState motion' border' i lx lj scaler'@(MotionScaler zeroLv
     _ -> nextState {motion = Stopped, border = None}
   |> \s -> (motion s, s)
   where
-    nextState = CalcMotionState motion' border' 0 x (max 0 $ lj-1) motionScaler
+    nextState = CalcMotionState motion' border' 0 x 0 motionScaler
     motionScaler = scaler' {lastMotion = if abs (lx - x) > rescaleDiff then 0 else lastMotion' + 1}
 
-    topLvl = zeroLvl' + 3
+    topLvl = zeroLvl' + 2
     bottomLvl = zeroLvl' - 3
-    topJumpLvl = zeroLvl' + 10
+    topJumpLvl = zeroLvl' + 11
     bottomJumpLvl = zeroLvl' - 15
-    jumpIgnore' = 5
+    jumpIgnore' = 8
     iMax = 4
     minDiff = 4
-    rescaleAfter = 30
+    rescaleAfter = 10
     rescaleDiff = 1
 calcMotion _ _ = error "invalid position"
