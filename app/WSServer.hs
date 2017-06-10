@@ -1,14 +1,5 @@
--- websockets example
--- ==================
-
--- This is the Haskell implementation of the example for the WebSockets library. We
--- implement a simple multi-user chat program. A live demo of the example is
--- available [here](/example/client.html).  In order to understand this example,
--- keep the [reference](/reference/) nearby to check out the functions we use.
-
-{-# LANGUAGE OverloadedStrings, FlexibleInstances, StandaloneDeriving #-}
-module WSServer where
--- import Data.Monoid (mappend)
+{-# LANGUAGE OverloadedStrings, FlexibleInstances #-}
+module WSServer (run) where
 import Data.Maybe
 import Data.Text
 import Control.Exception (finally)
@@ -17,29 +8,23 @@ import Control.Concurrent
 
 import qualified Network.WebSockets as WS
 
-
--- The main function first creates a new state for the server, then spawns the
--- actual server. For this purpose, we use the simple server provided by
--- `WS.runServer`.
+import Utils
+import qualified MotionDetector as MD
 
 data ServerState = ServerState{
   sender::Maybe WS.Connection,
   receiver::Maybe WS.Connection,
   debugger::Maybe WS.Connection,
-  motionCalcState::CalcMotionState
+  detectorState::MD.MDState
 }
 initialServerState :: ServerState
-initialServerState = ServerState Nothing Nothing Nothing initCalcMotionState
+initialServerState = ServerState Nothing Nothing Nothing MD.initMDState
 
 run :: String -> Int -> IO ()
 run host port = do
     state <- newMVar initialServerState
     putStrLn $ "WS server is running on " ++ host ++ ":" ++ (show port)
     WS.runServer host port $ application state
-
-(|>) :: a -> (a -> b) -> b
-(|>) v f = f v
-infixl 1 |>
 
 data WSAction = Send WS.Connection Text
 
@@ -80,19 +65,26 @@ application (state) pending = do
   case msg of
     "sender" -> flip finally disconnect connect
       where
-        disconnect = handleEvent state $ \s -> ([], s {sender = Nothing})
+        disconnect = handleEvent state $ \s -> ([], s {
+          sender = Nothing, detectorState = MD.initMDState})
         connect = do
           handleEvent state $ \s -> ([], s {sender = Just conn})
           forever $ handleMessage conn state $
-            \m s -> let
-              (motion', mcState) = m |> parsePosition |> calcMotion (motionCalcState s)
-              m' = motion' |> show |> pack
-              d = m' `mappend` ";" `mappend` m
-              in (
-                [receiver s |> fmap (flip Send $ m'), debugger s |> fmap (flip Send $ d)]
-                  |> catMaybes,
-                s {motionCalcState = mcState}
-              )
+            \m s ->m
+              |> parsePosition
+              |> fmap (MD.detectMotion $ detectorState s)
+              |> fmap (\(motion', mdState) ->
+                  let
+                    m' = motion' |> show |> pack
+                    d = m' `mappend` ";" `mappend` m
+                  in (
+                    [receiver s |> fmap (flip Send $ m'),
+                      debugger s |> fmap (flip Send $ d)]
+                      |> catMaybes,
+                    s {detectorState = mdState}
+                  )
+                )
+              |> fromMaybe ([], s)
     "receiver" -> flip finally disconnect connect
       where
         disconnect = handleEvent state $ \s -> ([], s {receiver = Nothing})
@@ -111,55 +103,8 @@ dumbReceive::WS.Connection -> MVar ServerState -> IO ()
 dumbReceive conn state =
   forever $ handleMessage conn state ((\_ _ -> [])::(Text -> ServerState -> [WSAction]))
 
-parsePosition::Text -> [Double]
-parsePosition t = t |> splitOn ";" |> fmap (\x -> read (unpack x) :: Double)
-
-data Motion = Stopped | Running | Jumping deriving Eq
-deriving instance Show Motion
-
-data MotionBorder = Top | Bottom | None deriving Eq
-data MotionScaler = MotionScaler {zeroLvl::Double, lastMotion::Double}
-initMotionScaler::MotionScaler
-initMotionScaler = MotionScaler 0 0
-data CalcMotionState = CalcMotionState {
-  motion::Motion, border::MotionBorder, lastChange::Int, lastx::Double, jumpIgnore::Double, scaler::MotionScaler
-}
-
-initCalcMotionState::CalcMotionState
-initCalcMotionState = CalcMotionState Stopped None 0 0 0 initMotionScaler
-
--- TODO: split into smaller functions, prevent changing motion state until scaler gets stabilized
-calcMotion::CalcMotionState -> [Double] -> (Motion, CalcMotionState)
-calcMotion (CalcMotionState motion' border' i lx lj scaler'@(MotionScaler zeroLvl' lastMotion')) [x, _y, _z, _a, _b, _g] =
-  case border' of
-    _ | lastMotion' > rescaleAfter ->
-      nextState {motion = Stopped, border = None, scaler = MotionScaler x 0}
-    None | x < bottomLvl -> nextState {motion = Running, border = Bottom}
-    _ | motion' == Jumping && lj > 0 -> nextState{jumpIgnore = lj-1}
-    _ | motion' == Jumping && lj == 0 -> nextState{motion = Running}
-    _ | (x > topJumpLvl || x < bottomJumpLvl) ->
-      nextState {motion = Jumping, jumpIgnore = jumpIgnore'}
-    Top | x > topLvl -> nextState {motion = Running}
-    Top | x < bottomLvl -> nextState {motion = Running, border = Bottom}
-    Top | lx - x >= minDiff -> nextState {motion = Running}
-    Top | lx - x < minDiff && i < iMax -> nextState {motion = Running, lastChange = i + 1}
-    Bottom | x < bottomLvl -> nextState {motion = Running}
-    Bottom | x > topLvl -> nextState {motion = Running, border = Top}
-    Bottom | x - lx >= minDiff -> nextState {motion = Running}
-    Bottom | x - lx < minDiff && i < iMax -> nextState {motion = Running, lastChange = i + 1}
-    _ -> nextState {motion = Stopped, border = None}
-  |> \s -> (motion s, s)
-  where
-    nextState = CalcMotionState motion' border' 0 x 0 motionScaler
-    motionScaler = scaler' {lastMotion = if abs (lx - x) > rescaleDiff then 0 else lastMotion' + 1}
-
-    topLvl = zeroLvl' + 2
-    bottomLvl = zeroLvl' - 3
-    topJumpLvl = zeroLvl' + 11
-    bottomJumpLvl = zeroLvl' - 15
-    jumpIgnore' = 8
-    iMax = 4
-    minDiff = 4
-    rescaleAfter = 10
-    rescaleDiff = 1
-calcMotion _ _ = error "invalid position"
+parsePosition::Text -> Maybe MD.Acceleration
+parsePosition t =
+  case t |> splitOn ";" |> fmap (\x -> read (unpack x) :: Double) of
+    [x, y, z, a, b, g] -> Just $ MD.Acceleration x y z a b g
+    _ -> Nothing

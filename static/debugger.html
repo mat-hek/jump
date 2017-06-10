@@ -44,7 +44,7 @@
     ws.onmessage = function(evt){
 
       var data = evt.data.split(';')
-      data[0] = {'Stopped': 0, 'Running': 1, 'Jumping': 2}[data[0]]
+      data[0] = {'Undetected': 0, 'Stopped': 1, 'Running': 2, 'Jumping': 3}[data[0]]
       data = data.map(function(x){return parseFloat(x,10)})
       data.push(data.slice(1).reduce(function(a,b,i){return (i<=3) ? a+b : a}, 0))
       data.map(function(x, i){updateChart[i](x)})

@@ -2,7 +2,7 @@
   <head>
     <title>receiver</title>
   </head>
-  <body style='background-color:lightgray;color:white;font-family:arial;font-size:40;margin:20'>
+  <body style='background-color:black;color:white;font-family:arial;font-size:40;margin:20'>
   </body>
   <script>
 
@@ -16,7 +16,7 @@
     ws.onmessage = function(evt){
       var color =
       body.style.backgroundColor =
-        {'Stopped': 'lightgray', 'Running': 'lightgreen', 'Jumping': 'yellow'}[evt.data]
+        {'Undetected': 'black', 'Stopped': 'lightgray', 'Running': 'lightgreen', 'Jumping': 'yellow'}[evt.data]
       body.innerHTML = evt.data
     }
 
