@@ -7,12 +7,6 @@ import Utils
 
 data Motion = Undetected | Stopped | Running | Jumping deriving (Eq, Show)
 
-data MotionPosition = Top | Bottom | None deriving Eq
-
-data MotionScaler = MotionScaler {zeroLvl::Double, motions::[Double]}
-initMotionScaler::MotionScaler
-initMotionScaler = MotionScaler 0 []
-
 data MDState = MDState {
   motion::Motion,
   position::MotionPosition,
@@ -39,6 +33,12 @@ detectMotion state@MDState{motion=motion', scaler=scaler'} acc =
   where
     (scaled, newScaler) = rescale scaler' acc
     state' = state{scaler=newScaler}
+
+data MotionPosition = Top | Bottom | None deriving Eq
+
+data MotionScaler = MotionScaler {zeroLvl::Double, motions::[Double]}
+initMotionScaler::MotionScaler
+initMotionScaler = MotionScaler 0 []
 
 doDetectMotion::MDState -> Acceleration -> MDState
 doDetectMotion

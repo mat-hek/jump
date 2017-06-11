@@ -10,6 +10,8 @@ import qualified Network.WebSockets as WS
 
 import Utils
 import qualified MotionDetector as MD
+import WSHelper (WSAction(Send))
+import qualified WSHelper as WSH
 
 data ServerState = ServerState{
   sender::Maybe WS.Connection,
@@ -26,38 +28,9 @@ run host port = do
     putStrLn $ "WS server is running on " ++ host ++ ":" ++ (show port)
     WS.runServer host port $ application state
 
-data WSAction = Send WS.Connection Text
-
-handleEvent::MVar ServerState -> (ServerState -> ([WSAction], ServerState)) -> IO ()
-handleEvent state f = do
-  s <- takeMVar state
-  let  (actions, newstate) = f s
-  actions |> mapM_ handleWSAction
-  putMVar state newstate
-
-class MessageHandler a where
-  handleMessage :: WS.Connection -> MVar ServerState -> a -> IO ()
-
-instance MessageHandler (Text -> ServerState -> ([WSAction], ServerState)) where
-  handleMessage conn state f = do
-    m <- (WS.receiveData conn)::(IO Text)
-    s <- takeMVar state
-    let (actions, newstate) = f m s
-    actions |> mapM_ handleWSAction
-    putMVar state newstate
-
-instance MessageHandler (Text -> ServerState -> [WSAction]) where
-  handleMessage conn state f = do
-    m <- (WS.receiveData conn)::(IO Text)
-    s <- readMVar state
-    let actions = f m s
-    actions |> mapM_ handleWSAction
-
-handleWSAction::WSAction -> IO ()
-handleWSAction (Send conn msg) = WS.sendTextData conn msg
 
 application :: MVar ServerState -> WS.ServerApp
-application (state) pending = do
+application state pending = do
   conn <- WS.acceptRequest pending
   putStrLn "incoming connection"
   WS.forkPingThread conn 30
@@ -65,46 +38,43 @@ application (state) pending = do
   case msg of
     "sender" -> flip finally disconnect connect
       where
-        disconnect = handleEvent state $ \s -> ([], s {
+        disconnect = WSH.handleEvent state $ \s -> ([], s {
           sender = Nothing, detectorState = MD.initMDState})
         connect = do
-          handleEvent state $ \s -> ([], s {sender = Just conn})
-          forever $ handleMessage conn state $
-            \m s ->m
-              |> parsePosition
-              |> fmap (MD.detectMotion $ detectorState s)
-              |> fmap (\(motion', mdState) ->
-                  let
-                    m' = motion' |> show |> pack
-                    d = m' `mappend` ";" `mappend` m
-                  in (
-                    [receiver s |> fmap (flip Send $ m'),
-                      debugger s |> fmap (flip Send $ d)]
-                      |> catMaybes,
-                    s {detectorState = mdState}
-                  )
-                )
-              |> fromMaybe ([], s)
+          WSH.handleEvent state $ \s -> ([], s {sender = Just conn})
+          forever $ WSH.handleMessage conn state handleAcceleration
     "receiver" -> flip finally disconnect connect
       where
-        disconnect = handleEvent state $ \s -> ([], s {receiver = Nothing})
+        disconnect = WSH.handleEvent state $ \s -> ([], s {receiver = Nothing})
         connect = do
-          handleEvent state $ \s -> ([], s {receiver = Just conn})
-          dumbReceive conn state
+          WSH.handleEvent state $ \s -> ([], s {receiver = Just conn})
+          WSH.dumbReceive conn state
     "debugger" -> flip finally disconnect connect
       where
-        disconnect = handleEvent state $ \s -> ([], s {debugger = Nothing})
+        disconnect = WSH.handleEvent state $ \s -> ([], s {debugger = Nothing})
         connect = do
-          handleEvent state $ \s -> ([], s {debugger = Just conn})
-          dumbReceive conn state
+          WSH.handleEvent state $ \s -> ([], s {debugger = Just conn})
+          WSH.dumbReceive conn state
     _ -> return ()
 
-dumbReceive::WS.Connection -> MVar ServerState -> IO ()
-dumbReceive conn state =
-  forever $ handleMessage conn state ((\_ _ -> [])::(Text -> ServerState -> [WSAction]))
+handleAcceleration :: Text -> ServerState -> ([WSAction], ServerState)
+handleAcceleration m s = m
+  |> parseAcceleration
+  |> fmap (MD.detectMotion $ detectorState s)
+  |> fmap (\(motion', mdState) ->
+      let
+        m' = motion' |> show |> pack
+        d = m' `mappend` ";" `mappend` m
+      in (
+        [receiver s |> fmap (flip Send $ m'), debugger s |> fmap (flip Send $ d)]
+          |> catMaybes,
+        s {detectorState = mdState}
+      )
+    )
+  |> fromMaybe ([], s)
 
-parsePosition::Text -> Maybe MD.Acceleration
-parsePosition t =
+parseAcceleration :: Text -> Maybe MD.Acceleration
+parseAcceleration t =
   case t |> splitOn ";" |> fmap (\x -> read (unpack x) :: Double) of
     [x, y, z, a, b, g] -> Just $ MD.Acceleration x y z a b g
     _ -> Nothing
