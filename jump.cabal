@@ -15,8 +15,14 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     WSServer, HttpServer
-  other-modules:       MotionDetector, Utils, WSHelper
+  exposed-modules:     WSServer
+                     , WSServer.Internal
+                     , HttpServer
+                     , MotionDetector
+                     , MotionDetector.Internal
+                     , Utils
+                     , WSHelper
+                     , WSHelper.Internal
   build-depends:       base
                      , websockets
                      , text
@@ -35,10 +41,10 @@ executable jump-exe
                      , async
   default-language:    Haskell2010
 
-test-suite jump-test
+test-suite jump-htest
   type:                exitcode-stdio-1.0
-  hs-source-dirs:      test
-  main-is:             Spec.hs
+  hs-source-dirs:      spec
+  main-is:             HSpec.hs
   build-depends:       base
                      , jump
                      , HUnit
