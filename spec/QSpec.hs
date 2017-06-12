@@ -14,13 +14,14 @@ instance Arbitrary Acceleration where
   arbitrary = Acceleration <$> arb <*> arb <*> arb <*> arb <*> arb <*> arb
 
 parseAccelerationTest :: Acceleration -> Bool
-parseAccelerationTest (Acceleration x y z a b g) =
-  ([x, y, z, a, b, g] |> fmap show |> intercalate ";" |> Text.pack |> parseAcceleration)
-    == (Just $ Acceleration x y z a b g)
+parseAccelerationTest acc@(Acceleration x y z a b g) = [x, y, z, a, b, g]
+  |> fmap show |> intercalate ";" |> Text.pack |> parseAcceleration
+  == Just acc
 
 newtype RescalableList = RescalableList [Double] deriving Show
 instance Arbitrary RescalableList where
-  arbitrary = [1..20] |> fmap (\_ -> choose (-0.01, 0.01)) |> sequence |> fmap RescalableList
+  arbitrary =
+    [1..20] |> fmap (\_ -> choose (-0.01, 0.01)) |> sequence |> fmap RescalableList
 
 rescaleTest :: RescalableList -> Bool
 rescaleTest (RescalableList (x:l)) =

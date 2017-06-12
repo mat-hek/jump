@@ -2,4 +2,4 @@ module Utils where
 
 (|>) :: a -> (a -> b) -> b
 (|>) v f = f v
-infixl 1 |>
+infixl 5 |>
