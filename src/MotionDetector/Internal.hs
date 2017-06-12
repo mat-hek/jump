@@ -92,12 +92,13 @@ doDetectMotion
 rescale::MotionScaler -> Acceleration -> (Bool, MotionScaler)
 rescale scaler'@(MotionScaler {motions = motions'}) Acceleration {accx = x}
   | length motions' < rescaleAfter = (False, scaler' {motions = x:motions'})
-  | diff <= rescaleDiff && absDiff <= rescaleAbsDiff = (True, MotionScaler x newMotions)
+  | diff <= rescaleDiff && absDiff <= rescaleAbsDiff = (True, MotionScaler avg newMotions)
   | otherwise = (False, scaler' {motions = newMotions})
   where
     newMotions = x:(init motions')
     absDiff = newMotions |> \(h:t) -> foldl1 ((+) . (subtract h) . abs) t
     diff = newMotions |> \(h:t) -> foldl1 ((+) . (subtract h)) t |> abs
+    avg = sum newMotions / fromIntegral rescaleAfter
     rescaleAfter = 20
     rescaleAbsDiff = 3
     rescaleDiff = 1

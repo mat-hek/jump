@@ -5,7 +5,6 @@ import Utils
 import MotionDetector.Internal as MD
 import WSServer.Internal
 
-main :: IO ()
 main = do
   _ <- runTestTT tests
   return ()
