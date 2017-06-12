@@ -17,10 +17,11 @@ data ServerState = ServerState{
   sender::Maybe WS.Connection,
   receiver::Maybe WS.Connection,
   debugger::Maybe WS.Connection,
-  detectorState::MD.MDState
+  detectorState::MD.MDState,
+  motion::MD.Motion
 }
 initialServerState :: ServerState
-initialServerState = ServerState Nothing Nothing Nothing MD.initMDState
+initialServerState = ServerState Nothing Nothing Nothing MD.initMDState MD.Undetected
 
 run :: String -> Int -> IO ()
 run host port = do
@@ -38,8 +39,10 @@ application state pending = do
   case msg of
     "sender" -> flip finally disconnect connect
       where
-        disconnect = WSH.handleEvent state $ \s -> ([], s {
-          sender = Nothing, detectorState = MD.initMDState})
+        disconnect = WSH.handleEvent state $ \s -> (
+            [receiver s |> fmap (flip Send $ serializeMotion MD.Undetected)] |> catMaybes,
+            s {sender = Nothing, detectorState = MD.initMDState, motion = MD.Undetected}
+          )
         connect = do
           WSH.handleEvent state $ \s -> ([], s {sender = Just conn})
           forever $ WSH.handleMessage conn state handleAcceleration
@@ -63,10 +66,11 @@ handleAcceleration m s = m
   |> fmap (MD.detectMotion $ detectorState s)
   |> fmap (\(motion', mdState) ->
       let
-        m' = motion' |> show |> pack
+        m' = motion' |> serializeMotion
         d = m' `mappend` ";" `mappend` m
       in (
-        [receiver s |> fmap (flip Send $ m'), debugger s |> fmap (flip Send $ d)]
+        [guard (motion s /= motion') >>= \_ -> receiver s |> fmap (flip Send $ m'),
+        debugger s |> fmap (flip Send $ d)]
           |> catMaybes,
         s {detectorState = mdState}
       )
@@ -78,3 +82,6 @@ parseAcceleration t =
   case t |> splitOn ";" |> fmap (\x -> read (unpack x) :: Double) of
     [x, y, z, a, b, g] -> Just $ MD.Acceleration x y z a b g
     _ -> Nothing
+
+serializeMotion :: MD.Motion -> Text
+serializeMotion m = m |> show |> pack

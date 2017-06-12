@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-unused-top-binds #-}
 module MotionDetector
-  (Motion, MDState(MDState), Acceleration(Acceleration), initMDState, detectMotion)
+  (Motion(..), MDState(MDState), Acceleration(Acceleration), initMDState, detectMotion)
 where
 
 import Utils
@@ -82,11 +82,11 @@ doDetectMotion
 
     topLvl = zeroLvl' + 2
     bottomLvl = zeroLvl' - 3
-    topJumpLvl = zeroLvl' + 11
-    bottomJumpLvl = zeroLvl' - 15
+    topJumpLvl = zeroLvl' + 13
+    bottomJumpLvl = zeroLvl' - 18
     jumpIgnore' = 8
-    maxUnchangedCnt = 4
-    minDiff = 4
+    maxUnchangedCnt = 3
+    minDiff = 3.5
 
 rescale::MotionScaler -> Acceleration -> (Bool, MotionScaler)
 rescale scaler'@(MotionScaler {motions = motions'}) Acceleration {accx = x}
