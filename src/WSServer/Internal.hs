@@ -73,7 +73,7 @@ handleAcceleration m s = m
         [guard (motion s /= motion') >>= \_ -> receiver s |> fmap (flip Send $ m'),
         debugger s |> fmap (flip Send $ d)]
           |> catMaybes,
-        s {detectorState = mdState}
+        s {detectorState = mdState, motion=motion'}
       )
     )
   |> fromMaybe ([], s)
