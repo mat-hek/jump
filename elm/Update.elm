@@ -117,6 +117,7 @@ moveHero dt model =
                 |> jump model.jump
                 |> move model.move
                 |> physics dt model.windowSize
+                , jump = False
     }
 
 move : Bool -> Hero -> Hero
@@ -139,7 +140,7 @@ walk : Time -> Window.Size -> Hero -> Float
 walk dt size hero =
     if hero.x - (toFloat hero.size.x) / 3 < (toFloat -size.width) / 2 && hero.vx < 0 then
         hero.x
-    else if hero.x + (toFloat hero.size.x) / 3 > (toFloat size.width) / 2 && hero.vx > 0 then
+    else if hero.x + (toFloat hero.size.x) / 3 > (toFloat size.width) / 4 && hero.vx > 0 then
         hero.x
     else
         hero.x + 2 * dt * hero.vx
