@@ -11,7 +11,14 @@ import View
 import WebSocket
 import Window
 
+{-| Subscriptions batch for upcoming events in application
 
+    Monitor for:
+        - keyboard input
+        - websocket for reciving input from phone
+        - frames generator for actual playing
+        - window size changes
+-}
 subscriptions : Model -> Sub Action
 subscriptions model =
     Sub.batch
@@ -25,6 +32,7 @@ subscriptions model =
         , WebSocket.listen "ws://localhost:9160" Actions.SocketMessage
         ]
 
+{-| Map keyboard key number aliases into actual actions invoked in application -}
 key : Bool -> KeyCode -> Action
 key onOff keycode =
     case keycode of
@@ -37,10 +45,15 @@ key onOff keycode =
         _ ->
             Actions.Noop
 
+{-| Subscribe for messages on server -}
 subscribeToServer : Cmd Action
 subscribeToServer =
     WebSocket.send "ws://localhost:9160" "receiver"
 
+{-| Simple HTML program structure
+
+    http://package.elm-lang.org/packages/elm-lang/html/latest/Html#program
+-}
 main : Program Never Model Action
 main =
     Html.program

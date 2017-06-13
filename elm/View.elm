@@ -7,6 +7,7 @@ import Element exposing (..)
 import Html exposing (Html)
 import Model exposing (Model, Hero, Enemy, State)
 
+{-| View rendering after each update -}
 view : Model -> Html Action
 view model =
     let
@@ -27,6 +28,7 @@ view model =
             ]
         |> Element.toHtml
 
+{-| Separated render methods for each component -}
 renderSky : Float -> Float -> Form
 renderSky w h =
     rect w h
@@ -38,6 +40,7 @@ renderGrass w h offset =
     |> filled ( rgb 74 167 43 )
     |> move ( 0, offset )
 
+{-| Wrap hero gifs into elm components -}
 renderHero : Hero -> Float -> Form
 renderHero hero offset =
     let

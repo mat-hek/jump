@@ -8,6 +8,8 @@ module Model exposing
 
 import Window
 
+{-| All models used in application -}
+
 type alias Model =
     { hero : Hero
     , jump : Bool
@@ -52,6 +54,7 @@ type alias Keys =
     , y : Int
     }
 
+{-| Initial fetched at the begging of the application lifecycle -}
 initial : Model
 initial =
     { hero =

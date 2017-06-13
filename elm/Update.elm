@@ -5,8 +5,11 @@ import Model exposing (Model, State(..), Hero)
 import Time exposing (Time)
 import Window
 
-import Debug
 
+{-| Update flow for each message/event invoked in application
+
+    Generally its all about updating game god-object holding all current state
+-}
 update : Action -> Model -> ( Model, Cmd Action )
 update action model =
     case action of
