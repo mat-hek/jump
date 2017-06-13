@@ -25,7 +25,7 @@ instance Arbitrary RescalableList where
 
 rescaleTest :: RescalableList -> Bool
 rescaleTest (RescalableList (x:l)) =
-  (rescale initMotionScaler {motions=l'} zeroAcceleration {accx=x})
+  rescale initMotionScaler {motions=l'} zeroAcceleration {accx=x}
     == (True, MotionScaler {motions=motions', zeroLvl=avg})
   where
     l' = 0:l
