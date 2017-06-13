@@ -1,1 +1,2 @@
+elm make elm/Main.elm --output=static/game.js
 stack exec jump-exe
