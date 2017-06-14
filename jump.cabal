@@ -2,11 +2,11 @@ name:                jump
 version:             0.1.0.0
 -- synopsis:
 -- description:
-homepage:            https://github.com/githubuser/jump#readme
+homepage:            https://github.com/mat-hek/jump
 license:             BSD3
 license-file:        LICENSE
-author:              Author name here
-maintainer:          example@example.com
+author:              Mateusz Front, Bartlomiej Bukowski
+maintainer:          mfront3@gmail.com
 copyright:           2017 Author name here
 category:            Web
 build-type:          Simple
@@ -65,4 +65,4 @@ test-suite jump-qtest
 
 source-repository head
   type:     git
-  location: https://github.com/githubuser/jump
+  location: https://github.com/mat-hek/jump
