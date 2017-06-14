@@ -2,8 +2,10 @@ module MotionDetector.Internal where
 
 import Utils
 
+-- | Represents user motion
 data Motion = Undetected | Stopped | Running | Jumping deriving (Eq, Show)
 
+-- | State of detector
 data MDState = MDState {
   motion::Motion,
   position::MotionPosition,
@@ -15,6 +17,7 @@ data MDState = MDState {
 initMDState::MDState
 initMDState = MDState Undetected None 0 0 0 initMotionScaler
 
+-- | Represents accelerometer data
 data Acceleration = Acceleration {
   accx::Double, accy::Double, accz::Double,
   rota::Double, rotb::Double, rotg::Double
@@ -22,6 +25,10 @@ data Acceleration = Acceleration {
 zeroAcceleration::Acceleration
 zeroAcceleration = Acceleration 0 0 0 0 0 0
 
+{-|
+  Detects motion given detector state and acceleration
+  Returns tuple of decected motion and new detector state
+-}
 detectMotion::MDState -> Acceleration -> (Motion, MDState)
 detectMotion state@MDState{motion=motion', scaler=scaler'} acc =
   case scaled of
