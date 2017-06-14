@@ -1,0 +1,17 @@
+Revision of another repository (https://github.com/apisarek/malus)
+
+malus project by A. Pisarek & B. Sumper
+
+Remarks:
+- README not at all descriptive - no clue how to use/launch project
+- some very long functions with inlined transfomrations and pipelines, what causes problems in understanding at first glance
+- non-consistent style of pipelinenig operations
+- lines of documentation vs complexity
+- whitekeys holes somewhere in the code
++ usage of many external dependencies
++ short, informative functions name 
++ example of easy REST API 
++ functions declarations lifted up for better visisbility 
++ usage of functors, monads, applicatives 
++ usage of higher order typeclasses (even those not included in compulsory part of course)
++ lines of code vs provided functionalities
